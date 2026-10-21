@@ -16,7 +16,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "worker": "tsx scripts/worker.ts"
+    "worker": "tsx scripts/worker.ts",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "test:unit": "vitest run tests/unit"
   },
   "repository": {
     "type": "git",
@@ -30,6 +32,7 @@
   },
   "homepage": "https://github.com/iajeyase/autopass#readme",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1154.0",
     "@prisma/client": "^6.19.3",
     "clsx": "^2.1.1",
     "lucide-react": "^1.61.0",

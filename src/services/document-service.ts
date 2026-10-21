@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { scanUpload } from '@/adapters/security/malware-scan';
 import { extractDemoFields } from '@/adapters/ocr/demo-ocr';
-import { getObject, putObject } from '@/adapters/storage/local-storage';
+import { getObject, putObject } from '@/adapters/storage/object-storage';
 import { canAccessCase, type Actor } from '@/auth/policy';
 import { db, type Tx } from '@/lib/db';
 import { DomainError } from '@/lib/errors';

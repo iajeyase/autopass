@@ -66,6 +66,11 @@ Zum Durchspielen eines kompletten Falls:
 6. Übergabe-Prüfung durchführen. Erst bei realen Quellen zeigt die Oberfläche „Ihr Fahrzeug kann übergeben werden.“
 7. Als Händler die Übergabe bestätigen. Der Fall ist abgeschlossen.
 
+## Deployment
+
+Vercel hostet die Anwendung, PostgreSQL und S3-kompatibler Speicher laufen extern. Schritt-für-Schritt-Anleitung: [docs/07-deployment-vercel.md](docs/07-deployment-vercel.md).
+Vor einem öffentlichen Launch sind rechtliche und Sicherheitspunkte offen, siehe docs/06.
+
 ## Tests
 
 ```bash
