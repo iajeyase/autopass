@@ -68,7 +68,7 @@ openssl rand -hex 24    # für CRON_SECRET (mindestens 16 Zeichen)
 | `APP_ENV` | `production` | Ja |
 | `DEMO_MODE` | `false` | Ja (Produktion verbietet `true`) |
 | `DATABASE_URL` | Neon-URL | Ja |
-| `APP_BASE_URL` | `https://<deine-domain>` | Ja (Einladungslinks) |
+| `APP_BASE_URL` | `https://<deine-domain>` | Nein auf Vercel (Fallback: Produktions-URL des Projekts). Eigene Domain später setzen |
 | `STORAGE_DRIVER` | `s3` | Ja |
 | `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | aus Schritt 3 | Ja |
 | `S3_ENDPOINT` | nur bei R2/MinIO | Nein |
@@ -109,6 +109,19 @@ Für Vorführungen eine **zweite** Umgebung verwenden, nicht die Produktion:
 - Eigenes Vercel-Projekt oder Environment „Preview“ mit `APP_ENV=demo`, `DEMO_MODE=true` und einer eigenen Datenbank.
 - Dort einmalig `npm run db:seed` gegen diese Datenbank ausführen.
 - Die Demo-Umgebung nicht öffentlich indexieren lassen (`noindex` bzw. Zugriffsschutz über Vercel Deployment Protection).
+
+## Fehlersuche
+
+**Build bricht ab mit „Ungültige Konfiguration: APP_BASE_URL … CRON_SECRET …“**
+- Leere Variablen zählen als ungesetzt. Entweder den Wert eintragen oder die Variable ganz löschen.
+- `CRON_SECRET` braucht mindestens 16 Zeichen, sonst weglassen.
+- `APP_BASE_URL` muss mit `https://` beginnen. Ohne Eintrag wird die Produktions-URL genutzt.
+
+**Build bricht ab mit „Produktionskonfiguration unvollständig“**
+- Meldung nennt die fehlenden Punkte. Typisch: `INSURANCE_DEMO_WEBHOOK_SECRET` noch auf dem Standardwert, `DEMO_MODE` steht auf `true`, oder S3-Zugangsdaten fehlen.
+
+**Migrationen schlagen fehl**
+- `DATABASE_URL` prüfen. Die Datenbank muss erreichbar sein und die Verbindung mit `sslmode=require` erlauben.
 
 ## Lokaler Test des Vercel-Builds
 

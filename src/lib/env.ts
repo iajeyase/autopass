@@ -5,7 +5,8 @@ const schema = z.object({
   // Betriebsart. "production" verbietet den Demo-Modus. NODE_ENV ist bei next build immer "production" und taugt dafür nicht.
   APP_ENV: z.enum(['development', 'demo', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
-  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
+  // Leer oder ungesetzt: auf Vercel wird die Produktions-URL genutzt (siehe env()).
+  APP_BASE_URL: z.string().url().optional().or(z.literal('')),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_DIR: z.string().min(1).default('./storage'),
   S3_BUCKET: z.string().optional(),
@@ -16,7 +17,7 @@ const schema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   INSURANCE_DEMO_WEBHOOK_SECRET: z.string().min(8).default('demo-only-change-me'),
   // Geheimnis für den Cron-Aufruf auf Vercel (Authorization: Bearer <CRON_SECRET>)
-  CRON_SECRET: z.string().min(16).optional(),
+  CRON_SECRET: z.string().min(16).optional().or(z.literal('')),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
   DEMO_MODE: z
@@ -55,7 +56,8 @@ export function env(): Env {
         throw new Error('Produktionskonfiguration unvollständig: ' + problems.join(' '));
       }
     }
-    cached = parsed.data;
+    const fallbackUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000';
+    cached = { ...parsed.data, APP_BASE_URL: parsed.data.APP_BASE_URL || fallbackUrl, CRON_SECRET: parsed.data.CRON_SECRET || undefined };
   }
   return cached;
 }
