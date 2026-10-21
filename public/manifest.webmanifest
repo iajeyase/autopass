@@ -1,0 +1,11 @@
+{
+  "name": "AutoPass Switzerland",
+  "short_name": "AutoPass",
+  "description": "Fahrzeugzulassung koordinieren. Keine Behörde.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#1f4e8c",
+  "lang": "de-CH",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/* Designtokens. Farben werden hier einmal definiert und in Light- und Dark Mode gespiegelt. */
+:root {
+  --background: #f5f6f8;
+  --surface: #ffffff;
+  --surface-muted: #eef1f5;
+  --foreground: #1d2433;
+  --muted: #5b6474;
+  --border: #e1e5ec;
+  --accent: #1f4e8c;
+  --accent-soft: #e6eef8;
+  --accent-foreground: #ffffff;
+  --success: #2e7d5b;
+  --success-soft: #e5f3ec;
+  --warning: #9a6512;
+  --warning-soft: #fbf1de;
+  --danger: #b42318;
+  --danger-soft: #fbe9e7;
+  --demo: #6b4fbb;
+  --demo-soft: #efeafb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0f1218;
+    --surface: #171c26;
+    --surface-muted: #1f2531;
+    --foreground: #e8ebf1;
+    --muted: #9aa3b2;
+    --border: #2a3140;
+    --accent: #7fb0ec;
+    --accent-soft: #1d2d44;
+    --accent-foreground: #0f1218;
+    --success: #6fcb9d;
+    --success-soft: #16291f;
+    --warning: #f0b35a;
+    --warning-soft: #33280f;
+    --danger: #ff8a80;
+    --danger-soft: #3a1714;
+    --demo: #b9a6f2;
+    --demo-soft: #272038;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #0f1218;
+  --surface: #171c26;
+  --surface-muted: #1f2531;
+  --foreground: #e8ebf1;
+  --muted: #9aa3b2;
+  --border: #2a3140;
+  --accent: #7fb0ec;
+  --accent-soft: #1d2d44;
+  --accent-foreground: #0f1218;
+  --success: #6fcb9d;
+  --success-soft: #16291f;
+  --warning: #f0b35a;
+  --warning-soft: #33280f;
+  --danger: #ff8a80;
+  --danger-soft: #3a1714;
+  --demo: #b9a6f2;
+  --demo-soft: #272038;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-demo: var(--demo);
+  --color-demo-soft: var(--demo-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  font-feature-settings: "cv11", "ss01";
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+}
+
+/* Dezente Übergänge, für Nutzer mit reduzierter Bewegung deaktiviert. */
+@media (prefers-reduced-motion: no-preference) {
+  .transition-soft {
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-muted) 25%, var(--border) 50%, var(--surface-muted) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
