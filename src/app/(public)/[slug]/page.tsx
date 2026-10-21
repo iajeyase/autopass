@@ -2,9 +2,7 @@ import { notFound } from 'next/navigation';
 import { Alert } from '@/components/ui';
 import { PUBLIC_PAGES } from '@/content/public-pages';
 
-export function generateStaticParams() {
-  return Object.keys(PUBLIC_PAGES).map((slug) => ({ slug }));
-}
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

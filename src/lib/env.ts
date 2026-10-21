@@ -33,7 +33,9 @@ let cached: Env | null = null;
 
 export function env(): Env {
   if (!cached) {
-    const parsed = schema.safeParse(process.env);
+    // Leere Variablen (z. B. in Vercel angelegt, aber ohne Wert) gelten als ungesetzt.
+    const raw = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== '' && value !== undefined));
+    const parsed = schema.safeParse(raw);
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
       throw new Error(`Ungültige Konfiguration: ${issues}`);

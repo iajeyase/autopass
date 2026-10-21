@@ -58,3 +58,19 @@ describe('Produktionskonfiguration', () => {
     expect(env().STORAGE_DRIVER).toBe('s3');
   });
 });
+
+describe('Leere Umgebungsvariablen', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+    resetEnvForTests();
+  });
+
+  it('behandelt leere Werte wie nicht gesetzt', () => {
+    withEnv({ APP_ENV: 'development', DEMO_MODE: '', STORAGE_DRIVER: '', APP_BASE_URL: '', CRON_SECRET: '', DATABASE_URL: BASE.DATABASE_URL });
+    expect(env().STORAGE_DRIVER).toBe('local');
+    expect(env().DEMO_MODE).toBe(false);
+    expect(env().CRON_SECRET).toBeUndefined();
+  });
+});
