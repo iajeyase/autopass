@@ -9,6 +9,8 @@ const schema = z.object({
   APP_BASE_URL: z.string().url().optional().or(z.literal('')),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_DIR: z.string().min(1).default('./storage'),
+  // Nur Prototyp: erlaubt lokalen Speicher auf Vercel (flüchtig, Dateien gehen bei Neustart verloren).
+  ALLOW_LOCAL_STORAGE_ON_VERCEL: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   // Leer lassen für AWS S3. Für R2 oder MinIO die Endpunkt-URL setzen.
@@ -48,7 +50,7 @@ export function env(): Env {
       if (parsed.data.INSURANCE_DEMO_WEBHOOK_SECRET === 'demo-only-change-me' || parsed.data.INSURANCE_DEMO_WEBHOOK_SECRET.length < 32) {
         problems.push('INSURANCE_DEMO_WEBHOOK_SECRET muss in Produktion mindestens 32 Zeichen lang und individuell sein.');
       }
-      if (parsed.data.STORAGE_DRIVER === 'local' && process.env.VERCEL) {
+      if (parsed.data.STORAGE_DRIVER === 'local' && process.env.VERCEL && !parsed.data.ALLOW_LOCAL_STORAGE_ON_VERCEL) {
         problems.push('STORAGE_DRIVER=local ist auf Vercel nicht zulässig.');
       }
       if (parsed.data.STORAGE_DRIVER === 's3' && (!parsed.data.S3_BUCKET || !parsed.data.S3_REGION || !parsed.data.S3_ACCESS_KEY_ID || !parsed.data.S3_SECRET_ACCESS_KEY)) {

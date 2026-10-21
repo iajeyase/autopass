@@ -74,3 +74,19 @@ describe('Leere Umgebungsvariablen', () => {
     expect(env().CRON_SECRET).toBeUndefined();
   });
 });
+
+describe('Prototyp-Schalter für lokalen Speicher auf Vercel', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+    resetEnvForTests();
+  });
+
+  it('erlaubt lokalen Speicher auf Vercel nur mit ausdrücklichem Schalter', () => {
+    withEnv({ ...BASE, VERCEL: '1', ALLOW_LOCAL_STORAGE_ON_VERCEL: undefined });
+    expect(() => env()).toThrow(/Vercel/);
+    withEnv({ ...BASE, VERCEL: '1', ALLOW_LOCAL_STORAGE_ON_VERCEL: 'true' });
+    expect(env().ALLOW_LOCAL_STORAGE_ON_VERCEL).toBe(true);
+  });
+});

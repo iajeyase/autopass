@@ -5,7 +5,7 @@ import { getObjectS3, putObjectS3 } from './s3-storage';
 // Einziger Einstieg für Dokumentspeicher. Die Wahl trifft STORAGE_DRIVER.
 // Lokaler Speicher ist auf Serverless-Plattformen (Vercel) nicht dauerhaft und wird dort abgelehnt.
 function assertDriverUsable(): void {
-  if (env().STORAGE_DRIVER === 'local' && process.env.VERCEL) {
+  if (env().STORAGE_DRIVER === 'local' && process.env.VERCEL && !env().ALLOW_LOCAL_STORAGE_ON_VERCEL) {
     throw new Error('STORAGE_DRIVER=local ist auf Vercel nicht zulässig. Bitte S3-kompatiblen Speicher konfigurieren.');
   }
 }
