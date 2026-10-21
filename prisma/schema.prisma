@@ -1,0 +1,686 @@
+// AutoPass Switzerland – Datenmodell (MVP)
+// Mandantentrennung: Fachdaten hängen an organizationId (Händler/Unternehmen)
+// oder an customerUserId (Privatkunde). Zugriffe werden im Service-Layer geprüft.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum PlatformRole {
+  NONE
+  OPERATOR
+  ADMIN
+}
+
+enum OrgType {
+  DEALER
+  COMPANY
+}
+
+enum OrgRole {
+  ORG_ADMIN
+  ORG_STAFF
+}
+
+enum PreviousRegistration {
+  NEVER_REGISTERED
+  SWISS_CANTON
+  ABROAD
+  UNKNOWN
+}
+
+enum PlateSituation {
+  EXISTING_PLATES_AVAILABLE
+  EXISTING_PLATES_UNKNOWN
+  NEW_PLATES_REQUIRED
+}
+
+enum CaseType {
+  VEHICLE_CHANGE_WITH_PLATES
+  NEW_VEHICLE_NEW_PLATES
+  USED_VEHICLE_PURCHASE
+  MANUAL_CLASSIFICATION
+}
+
+enum CaseStatus {
+  SALE_CREATED
+  INVITED
+  PURCHASE_CONFIRMED
+  PREPARATION
+  REVIEW
+  READY_FOR_SUBMISSION
+  SUBMITTED
+  AUTHORITY_PROCESSING
+  PLATES_AND_ORIGINALS
+  HANDOVER_RELEASABLE
+  HANDED_OVER
+  CLOSED
+  ON_HOLD
+  CANCELLED
+}
+
+enum RulesetStatus {
+  VERIFIED
+  PARTIALLY_VERIFIED
+  UNVERIFIED
+}
+
+enum RequirementCategory {
+  DOCUMENT
+  DATA
+  INSURANCE
+  PLATE
+  ORIGINAL
+  INSPECTION
+  AUTHORITY
+  CONSENT
+}
+
+enum RequirementStatus {
+  OPEN
+  SATISFIED
+  NOT_APPLICABLE
+}
+
+enum RuleVerification {
+  VERIFIED_RULE
+  UNVERIFIED_RULE
+}
+
+enum DocumentKind {
+  IDENTITY
+  VEHICLE_REGISTRATION
+  INSPECTION_REPORT_13_20A
+  PURCHASE_CONTRACT
+  POWER_OF_ATTORNEY
+  RESIDENCE_PROOF
+  COMMERCIAL_REGISTER
+  INSURANCE_EVIDENCE
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADED
+  VERIFIED
+  REJECTED
+}
+
+enum ScanStatus {
+  NOT_SCANNED
+  CLEAN
+  INFECTED
+}
+
+enum FieldStatus {
+  SUGGESTED
+  CONFIRMED
+  CORRECTED
+}
+
+enum InsuranceStatus {
+  NOT_STARTED
+  REQUESTED
+  IN_PROGRESS
+  CONFIRMED
+  NOT_VERIFIED
+  PROBLEM
+}
+
+enum SubmissionStatus {
+  PREPARED
+  QUEUED_MANUAL
+  SUBMITTED
+  ACKNOWLEDGED
+  REJECTED
+}
+
+enum AuthorityResponseKind {
+  ACKNOWLEDGED
+  MORE_DOCUMENTS_REQUESTED
+  REGISTRATION_CONFIRMED
+  REJECTED
+}
+
+enum ReviewKind {
+  MANUAL_CHECK
+  DATA_CONFLICT
+  EXCEPTION
+  DEAD_LETTER
+  OVERRIDE_REQUEST
+}
+
+enum ReviewStatus {
+  OPEN
+  RESOLVED
+}
+
+enum TaskType {
+  REQUEST_INSURANCE
+  PREPARE_AUTHORITY_SUBMISSION
+}
+
+enum TaskStatus {
+  PENDING
+  RUNNING
+  DONE
+  DEAD_LETTER
+  CANCELLED
+}
+
+// Herkunft jeder Statusänderung. Nur PARTNER_WEBHOOK und OPERATOR (mit Beleg)
+// gelten als reale Bestätigung. SIMULATION ist ausdrücklich Demo.
+enum EventSource {
+  SYSTEM
+  CUSTOMER
+  DEALER
+  OPERATOR
+  PARTNER_WEBHOOK
+  SIMULATION
+}
+
+enum WebhookStatus {
+  PROCESSED
+  IGNORED_DUPLICATE
+  FAILED
+}
+
+enum EmailStatus {
+  NOT_REQUESTED
+  LOGGED_ONLY
+  SENT
+  FAILED
+}
+
+// ---------- Identität & Organisationen ----------
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique
+  passwordHash    String
+  fullName        String
+  platformRole    PlatformRole @default(NONE)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sessions        Session[]
+  memberships     OrganizationMember[]
+  customerProfile CustomerProfile?
+  notifications   Notification[]
+  documentsOwned  Document[]          @relation("DocumentOwner")
+  casesAsCustomer RegistrationCase[]  @relation("CaseCustomer")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique
+  userId    String   @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  type      OrgType
+  name      String
+  street    String
+  zip       String
+  city      String
+  canton    String
+  uid       String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  OrganizationMember[]
+  vehicles Vehicle[]
+  sales    VehicleSale[]
+  cases    RegistrationCase[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
+  role           OrgRole
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model CustomerProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  phone     String?
+  street    String?
+  zip       String?
+  city      String?
+  canton    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Fahrzeuge & Verkäufe ----------
+
+model Vehicle {
+  id                      String               @id @default(uuid()) @db.Uuid
+  organizationId          String               @db.Uuid
+  vin                     String
+  make                    String
+  model                   String
+  variant                 String?
+  isNew                   Boolean              @default(false)
+  isImport                Boolean              @default(false)
+  firstRegistrationDate   DateTime?            @db.Date
+  mileageKm               Int?
+  previousRegistration    PreviousRegistration @default(UNKNOWN)
+  previousCanton          String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sales        VehicleSale[]
+  documents    Document[]
+  cases        RegistrationCase[]
+
+  @@unique([organizationId, vin])
+}
+
+model VehicleSale {
+  id                  String    @id @default(uuid()) @db.Uuid
+  organizationId      String    @db.Uuid
+  vehicleId           String    @db.Uuid
+  createdById         String    @db.Uuid
+  buyerName           String
+  buyerEmail          String
+  buyerUserId        String?   @db.Uuid
+  isCompanyBuyer      Boolean   @default(false)
+  canton              String
+  saleDate            DateTime  @db.Date
+  plannedHandoverDate DateTime? @db.Date
+  priceChf            Int?
+  inviteTokenHash     String?   @unique
+  inviteExpiresAt     DateTime?
+  invitedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle              @relation(fields: [vehicleId], references: [id])
+  confirmation PurchaseConfirmation?
+  case         RegistrationCase?
+
+  @@index([organizationId])
+}
+
+// Prozessbestätigung des Käufers. Ausdrücklich KEIN Kaufvertrag.
+model PurchaseConfirmation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  saleId             String   @unique @db.Uuid
+  confirmedByUserId  String   @db.Uuid
+  confirmedAt        DateTime @default(now())
+  confirmationKind   String   @default("PROCESS_CONFIRMATION")
+  textVersion        String
+  dataConsent        Boolean
+  snapshot           Json
+
+  sale VehicleSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Zulassungsfall ----------
+
+model RegistrationCase {
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @db.Uuid
+  saleId          String        @unique @db.Uuid
+  vehicleId       String        @db.Uuid
+  customerUserId  String?       @db.Uuid
+  canton          String
+  caseType        CaseType      @default(MANUAL_CLASSIFICATION)
+  plateSituation  PlateSituation @default(EXISTING_PLATES_UNKNOWN)
+  status          CaseStatus    @default(SALE_CREATED)
+  resumeStatus    CaseStatus?
+  rulesetId       String?       @db.Uuid
+  rulesetVersion  Int?
+  version         Int           @default(0)
+  nextAction      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  closedAt        DateTime?
+
+  organization  Organization      @relation(fields: [organizationId], references: [id])
+  sale          VehicleSale       @relation(fields: [saleId], references: [id])
+  vehicle       Vehicle           @relation(fields: [vehicleId], references: [id])
+  customer      User?            @relation("CaseCustomer", fields: [customerUserId], references: [id])
+  ruleset       CantonRuleset?   @relation(fields: [rulesetId], references: [id])
+  requirements  CaseRequirement[]
+  documents     Document[]
+  insurance     InsuranceRequest?
+  submissions   AuthoritySubmission[]
+  responses     AuthorityResponse[]
+  temporaryAuths TemporaryAuthorization[]
+  reviewItems   ReviewItem[]
+  tasks         WorkflowTask[]
+  events        WorkflowEvent[]
+
+  @@index([organizationId, status])
+  @@index([customerUserId])
+}
+
+// Versionierte kantonale Regelwerke. Unverifizierte Regeln werden nie als verifiziert ausgegeben.
+model CantonRuleset {
+  id              String        @id @default(uuid()) @db.Uuid
+  canton          String
+  version         Int
+  status          RulesetStatus @default(UNVERIFIED)
+  sourceUrls      Json
+  sourceCheckedAt DateTime?
+  validFrom       DateTime
+  rules           Json
+  createdAt       DateTime      @default(now())
+
+  cases RegistrationCase[]
+
+  @@unique([canton, version])
+}
+
+model CaseRequirement {
+  id           String              @id @default(uuid()) @db.Uuid
+  caseId       String              @db.Uuid
+  ruleKey      String
+  title        String
+  category     RequirementCategory
+  documentKind DocumentKind?
+  status       RequirementStatus   @default(OPEN)
+  verification RuleVerification
+  sourceRef    String?
+  note         String?
+  satisfiedAt  DateTime?
+  satisfiedBy  String?             @db.Uuid
+  satisfiedVia String?
+  createdAt    DateTime            @default(now())
+
+  case RegistrationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, ruleKey])
+}
+
+// ---------- Dokumente ----------
+
+model Document {
+  id                 String         @id @default(uuid()) @db.Uuid
+  ownerUserId        String         @db.Uuid
+  caseId             String?        @db.Uuid
+  vehicleId          String?        @db.Uuid
+  kind               DocumentKind
+  title              String
+  status             DocumentStatus @default(UPLOADED)
+  scanStatus         ScanStatus     @default(NOT_SCANNED)
+  verifiedById       String?        @db.Uuid
+  verifiedAt         DateTime?
+  rejectionReason    String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  owner    User                @relation("DocumentOwner", fields: [ownerUserId], references: [id])
+  case     RegistrationCase?   @relation(fields: [caseId], references: [id])
+  vehicle  Vehicle?           @relation(fields: [vehicleId], references: [id])
+  versions DocumentVersion[]
+
+  @@index([caseId])
+}
+
+model DocumentVersion {
+  id               String   @id @default(uuid()) @db.Uuid
+  documentId       String   @db.Uuid
+  versionNumber    Int
+  storageKey       String   @unique
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  sha256           String
+  uploadedById     String   @db.Uuid
+  createdAt        DateTime @default(now())
+
+  document   Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  extraction DocumentExtraction?
+
+  @@unique([documentId, versionNumber])
+}
+
+model DocumentExtraction {
+  id                String   @id @default(uuid()) @db.Uuid
+  documentVersionId String   @unique @db.Uuid
+  extractor         String
+  createdAt         DateTime @default(now())
+
+  documentVersion DocumentVersion         @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  fields          DocumentExtractionField[]
+}
+
+// Jede Extraktion ist ein Vorschlag mit Konfidenz, bis ein Mensch sie bestätigt oder korrigiert.
+model DocumentExtractionField {
+  id             String      @id @default(uuid()) @db.Uuid
+  extractionId   String      @db.Uuid
+  fieldKey       String
+  suggestedValue String
+  confidence     Float
+  confirmedValue String?
+  status         FieldStatus @default(SUGGESTED)
+  updatedById    String?     @db.Uuid
+  updatedAt      DateTime    @updatedAt
+
+  extraction DocumentExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@unique([extractionId, fieldKey])
+}
+
+// ---------- Versicherung ----------
+
+model InsuranceProvider {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  adapterKey String   @unique
+  isDemo     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model InsuranceRequest {
+  id                  String          @id @default(uuid()) @db.Uuid
+  caseId              String          @unique @db.Uuid
+  providerKey         String
+  status              InsuranceStatus @default(NOT_STARTED)
+  externalReference   String?
+  evidenceDocumentId  String?         @db.Uuid
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  case   RegistrationCase        @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  events InsuranceStatusEvent[]
+}
+
+model InsuranceStatusEvent {
+  id                  String          @id @default(uuid()) @db.Uuid
+  insuranceRequestId  String          @db.Uuid
+  fromStatus          InsuranceStatus?
+  toStatus            InsuranceStatus
+  source              EventSource
+  externalEventId     String?
+  actorUserId        String?         @db.Uuid
+  note                String?
+  createdAt           DateTime        @default(now())
+
+  request InsuranceRequest @relation(fields: [insuranceRequestId], references: [id], onDelete: Cascade)
+
+  @@index([insuranceRequestId])
+}
+
+// ---------- Behörde (manuell oder über spätere Schnittstelle) ----------
+
+model AuthoritySubmission {
+  id           String           @id @default(uuid()) @db.Uuid
+  caseId       String           @db.Uuid
+  status       SubmissionStatus @default(PREPARED)
+  channel      String
+  preparedById String           @db.Uuid
+  payload      Json
+  // Versand- oder Eingangsreferenz der zuständigen Stelle (manuell erfasst)
+  channelReference String?
+  submittedAt  DateTime?
+  createdAt    DateTime         @default(now())
+
+  case      RegistrationCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  responses AuthorityResponse[]
+
+  @@index([caseId])
+}
+
+model AuthorityResponse {
+  id              String                @id @default(uuid()) @db.Uuid
+  caseId          String                @db.Uuid
+  submissionId    String?               @db.Uuid
+  kind            AuthorityResponseKind
+  source          EventSource
+  reference       String?
+  externalEventId String?
+  recordedById    String?               @db.Uuid
+  note            String?
+  createdAt       DateTime              @default(now())
+
+  case       RegistrationCase      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  submission AuthoritySubmission?  @relation(fields: [submissionId], references: [id])
+
+  @@unique([source, externalEventId])
+  @@index([caseId])
+}
+
+// Nur durch Behörde ausgestellt und manuell erfasst. Das System erzeugt diesen Datensatz nie selbst.
+model TemporaryAuthorization {
+  id           String      @id @default(uuid()) @db.Uuid
+  caseId       String      @db.Uuid
+  reference    String
+  validUntil   DateTime?
+  documentId   String?     @db.Uuid
+  source       EventSource
+  recordedById String      @db.Uuid
+  createdAt    DateTime    @default(now())
+
+  case RegistrationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+// ---------- Workflow & Operations ----------
+
+model ReviewItem {
+  id           String       @id @default(uuid()) @db.Uuid
+  caseId       String       @db.Uuid
+  kind         ReviewKind
+  title        String
+  detail       String
+  status       ReviewStatus @default(OPEN)
+  openedBy     EventSource
+  resolvedById String?      @db.Uuid
+  resolution   String?
+  createdAt    DateTime     @default(now())
+  resolvedAt   DateTime?
+
+  case RegistrationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, status])
+}
+
+model WorkflowTask {
+  id             String     @id @default(uuid()) @db.Uuid
+  caseId         String     @db.Uuid
+  type           TaskType
+  status         TaskStatus @default(PENDING)
+  attempts       Int        @default(0)
+  maxAttempts    Int        @default(3)
+  nextRunAt      DateTime   @default(now())
+  lastError      String?
+  idempotencyKey String     @unique
+  payload        Json
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  case RegistrationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRunAt])
+  @@index([caseId])
+}
+
+// Append-only Statushistorie. Jede Zustandsänderung erzeugt einen Eintrag.
+model WorkflowEvent {
+  id          String       @id @default(uuid()) @db.Uuid
+  caseId      String       @db.Uuid
+  type        String
+  fromStatus  CaseStatus?
+  toStatus    CaseStatus?
+  source      EventSource
+  actorUserId String?      @db.Uuid
+  message     String
+  data        Json?
+  createdAt   DateTime     @default(now())
+
+  case RegistrationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+}
+
+// Eingehende Partner-/Simulations-Ereignisse. Doppelte Zustellungen werden über den Unique-Key erkannt.
+model WebhookEvent {
+  id              String        @id @default(uuid()) @db.Uuid
+  provider        String
+  externalEventId String
+  payload         Json
+  status          WebhookStatus
+  receivedAt      DateTime      @default(now())
+
+  @@unique([provider, externalEventId])
+}
+
+model Notification {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @db.Uuid
+  caseId      String?     @db.Uuid
+  kind        String
+  title       String
+  body        String
+  readAt      DateTime?
+  emailStatus EmailStatus @default(NOT_REQUESTED)
+  createdAt   DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  actorUserId    String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  action         String
+  entityType     String
+  entityId       String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([organizationId, createdAt])
+}
