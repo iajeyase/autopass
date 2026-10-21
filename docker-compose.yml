@@ -1,0 +1,56 @@
+# Lokaler Stack: PostgreSQL, Web-Anwendung und Hintergrund-Worker.
+# Start: docker compose up -d --build && docker compose exec app npx prisma migrate deploy
+# Demo-Daten (nur Entwicklung): docker compose exec app npx tsx prisma/seed.ts
+# APP_ENV und DEMO_MODE stehen explizit im Compose-File, damit .env die Produktionswerte nicht überschreibt.
+# Produktion: APP_ENV=production, DEMO_MODE=false (Standard). Demo: APP_ENV=demo DEMO_MODE=true.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: autopass
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-autopass}
+      POSTGRES_DB: autopass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autopass -d autopass"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DATABASE_URL: postgresql://autopass:${POSTGRES_PASSWORD:-autopass}@db:5432/autopass?schema=public
+      STORAGE_DIR: /app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - storage:/app/storage
+
+  worker:
+    build: .
+    command: ["npx", "tsx", "scripts/worker.ts"]
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DATABASE_URL: postgresql://autopass:${POSTGRES_PASSWORD:-autopass}@db:5432/autopass?schema=public
+      STORAGE_DIR: /app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - storage:/app/storage
+
+volumes:
+  pgdata:
+  storage:
